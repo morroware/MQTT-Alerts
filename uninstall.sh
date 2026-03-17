@@ -45,10 +45,14 @@ systemctl daemon-reload
 
 log "Services removed"
 
-# Remove mosquitto custom config (but don't uninstall mosquitto itself)
+# Restore original mosquitto config if we backed it up, otherwise remove ours
+if [[ -f /etc/mosquitto/mosquitto.conf.bak ]]; then
+    mv /etc/mosquitto/mosquitto.conf.bak /etc/mosquitto/mosquitto.conf
+    log "Restored original Mosquitto config"
+fi
 rm -f /etc/mosquitto/conf.d/mqtt-alerts.conf
 systemctl restart mosquitto 2>/dev/null || true
-log "Mosquitto config removed (mosquitto itself left installed)"
+log "Mosquitto config restored (mosquitto itself left installed)"
 
 # Remove application files
 rm -rf /opt/mqtt-alerts
