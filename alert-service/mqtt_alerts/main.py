@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import signal
 import sys
 from datetime import datetime, timedelta, timezone
@@ -89,18 +90,15 @@ async def run_service():
 
     # Setup shutdown
     shutdown_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
 
-    def _signal_handler(sig, frame):
-        logger.info("Received signal %s, shutting down...", sig)
-        shutdown_event.set()
-
-    signal.signal(signal.SIGTERM, _signal_handler)
-    signal.signal(signal.SIGINT, _signal_handler)
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, shutdown_event.set)
 
     # Write health file
     HEALTH_FILE.write_text(json.dumps({
         "status": "running",
-        "pid": str(asyncio.get_running_loop()._thread_id if hasattr(asyncio.get_running_loop(), '_thread_id') else "unknown"),
+        "pid": os.getpid(),
         "started": datetime.now(timezone.utc).isoformat(),
     }))
 

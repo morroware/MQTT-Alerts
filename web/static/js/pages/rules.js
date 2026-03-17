@@ -63,7 +63,7 @@ const RulesPage = {
                 <div style="margin-top: 12px; display: flex; gap: 8px;">
                     <button class="btn btn-sm" onclick="RulesPage.showTestModal(${r.id})">Test</button>
                     <button class="btn btn-sm" onclick="RulesPage.showEditModal(${r.id})">Edit</button>
-                    <button class="btn btn-sm btn-danger" onclick="RulesPage.deleteRule(${r.id}, '${API.escapeHtml(r.name)}')">Delete</button>
+                    <button class="btn btn-sm btn-danger" onclick="RulesPage.deleteRule(${r.id}, '${API.escapeJsString(r.name)}')">Delete</button>
                 </div>
             </div>
         `).join('');

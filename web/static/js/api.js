@@ -52,6 +52,16 @@ const API = {
         return div.innerHTML;
     },
 
+    escapeJsString(str) {
+        return String(str)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '\\"')
+            .replace(/`/g, '\\`')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r');
+    },
+
     formatDate(iso) {
         if (!iso) return '—';
         const d = new Date(iso);
