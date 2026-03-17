@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT-Alerts</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">MQTT-Alerts</h1>
+                <span class="version">v1.0</span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#/" class="nav-link active" data-page="dashboard">
+                    <span class="nav-icon">&#9632;</span> Dashboard
+                </a></li>
+                <li><a href="#/topics" class="nav-link" data-page="topics">
+                    <span class="nav-icon">&#9993;</span> Topics
+                </a></li>
+                <li><a href="#/rules" class="nav-link" data-page="rules">
+                    <span class="nav-icon">&#9889;</span> Rules
+                </a></li>
+                <li><a href="#/messages" class="nav-link" data-page="messages">
+                    <span class="nav-icon">&#9776;</span> Messages
+                </a></li>
+                <li><a href="#/live" class="nav-link" data-page="live">
+                    <span class="nav-icon">&#9679;</span> Live Feed
+                </a></li>
+                <li><a href="#/settings" class="nav-link" data-page="settings">
+                    <span class="nav-icon">&#9881;</span> Settings
+                </a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <div id="connection-status" class="status-indicator status-unknown">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Checking...</span>
+                </div>
+            </div>
+        </nav>
+        <main id="content">
+            <div class="loading">Loading...</div>
+        </main>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <!-- Modal -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div id="modal" class="modal">
+            <div class="modal-header">
+                <h2 id="modal-title"></h2>
+                <button class="modal-close" onclick="Modal.close()">&times;</button>
+            </div>
+            <div id="modal-body" class="modal-body"></div>
+            <div id="modal-footer" class="modal-footer"></div>
+        </div>
+    </div>
+
+    <script src="/static/js/components/toast.js"></script>
+    <script src="/static/js/components/modal.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/pages/dashboard.js"></script>
+    <script src="/static/js/pages/topics.js"></script>
+    <script src="/static/js/pages/rules.js"></script>
+    <script src="/static/js/pages/messages.js"></script>
+    <script src="/static/js/pages/live.js"></script>
+    <script src="/static/js/pages/settings.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

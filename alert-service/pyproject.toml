@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mqtt-alerts"
+version = "1.0.0"
+description = "MQTT monitoring service with Slack alert integration"
+requires-python = ">=3.11"
+dependencies = [
+    "paho-mqtt>=2.0,<3.0",
+    "slack-sdk>=3.27,<4.0",
+    "sqlalchemy>=2.0,<3.0",
+    "aiosqlite>=0.20,<1.0",
+    "python-dotenv>=1.0,<2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+mqtt-alert-service = "mqtt_alerts.main:main"

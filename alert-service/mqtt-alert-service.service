@@ -1,0 +1,32 @@
+[Unit]
+Description=MQTT Alert Service
+Documentation=https://github.com/morroware/MQTT-Alerts
+After=network.target mosquitto.service
+Wants=mosquitto.service
+
+[Service]
+Type=simple
+User=mqtt-alerts
+Group=mqtt-alerts
+EnvironmentFile=/etc/mqtt-alerts/mqtt-alerts.env
+ExecStart=/opt/mqtt-alerts/venv/bin/mqtt-alert-service
+WorkingDirectory=/opt/mqtt-alerts
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/mqtt-alerts /tmp
+PrivateTmp=yes
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mqtt-alert-service
+
+[Install]
+WantedBy=multi-user.target
