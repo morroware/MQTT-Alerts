@@ -19,7 +19,7 @@ from .slack_notifier import SlackNotifier
 
 logger = logging.getLogger("mqtt_alerts")
 
-HEALTH_FILE = Path("/tmp/mqtt-alert-service.health")
+HEALTH_FILE = Path("/var/lib/mqtt-alerts/alert-service.health")
 
 
 def setup_logging(level: str):
@@ -90,7 +90,6 @@ async def run_service():
 
     # Setup shutdown
     shutdown_event = asyncio.Event()
-    loop = asyncio.get_running_loop()
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, shutdown_event.set)
@@ -107,7 +106,7 @@ async def run_service():
     # Main loop: refresh subscriptions and run cleanup periodically
     refresh_interval = 30  # seconds
     cleanup_interval = 3600  # 1 hour
-    last_cleanup = asyncio.get_event_loop().time()
+    last_cleanup = loop.time()
 
     try:
         while not shutdown_event.is_set():
@@ -124,7 +123,7 @@ async def run_service():
                 logger.error("Failed to refresh subscriptions: %s", e)
 
             # Periodic retention cleanup
-            now = asyncio.get_event_loop().time()
+            now = loop.time()
             if now - last_cleanup >= cleanup_interval:
                 try:
                     await retention_cleanup(config)

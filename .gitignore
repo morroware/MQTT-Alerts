@@ -31,4 +31,4 @@ Thumbs.db
 *.log
 
 # Health check
-/tmp/mqtt-alert-service.health
+*.health

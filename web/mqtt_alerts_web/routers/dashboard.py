@@ -103,7 +103,7 @@ async def get_recent_alerts(limit: int = Query(20, ge=1, le=100), db: AsyncSessi
 async def get_system_health():
     """Get system health status."""
     # Check alert service health
-    health_file = Path("/tmp/mqtt-alert-service.health")
+    health_file = Path("/var/lib/mqtt-alerts/alert-service.health")
     alert_service_status = "unknown"
     mqtt_connected = False
     if health_file.exists():

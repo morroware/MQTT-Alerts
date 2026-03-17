@@ -20,7 +20,7 @@ StartLimitIntervalSec=60
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/mqtt-alerts /tmp
+ReadWritePaths=/var/lib/mqtt-alerts
 PrivateTmp=yes
 
 # Logging
