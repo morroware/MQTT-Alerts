@@ -22,7 +22,7 @@ A production-ready system for Raspberry Pi 5 (Bookworm 64-bit) that runs an MQTT
 │         │                  ▼                  │         │
 │         │           ┌──────────┐              │         │
 │         │           │  Slack   │              │         │
-│         │           │  Webhook │              │         │
+│         │           │  Bot API │              │         │
 │         │           └──────────┘              │         │
 └─────────┼─────────────────────────────────────┼─────────┘
           │              LAN                    │
@@ -32,7 +32,7 @@ A production-ready system for Raspberry Pi 5 (Bookworm 64-bit) that runs an MQTT
 ### Components
 
 1. **Mosquitto MQTT Broker** — Industry-standard, lightweight MQTT broker installed via apt and managed by systemd.
-2. **Alert Service** (`mqtt-alert-service`) — A Python systemd service that subscribes to configured MQTT topics, evaluates messages against user-defined rules, and dispatches Slack notifications via incoming webhooks.
+2. **Alert Service** (`mqtt-alert-service`) — A Python systemd service that subscribes to configured MQTT topics, evaluates messages against user-defined rules, and dispatches Slack notifications via a Slack Bot Token (`chat.postMessage` API).
 3. **Web UI** (`mqtt-alerts-web`) — A FastAPI backend serving a React (Vite) frontend. Provides dashboards, rule management, topic browsing, message history, and Slack integration configuration.
 
 ---
@@ -44,7 +44,7 @@ A production-ready system for Raspberry Pi 5 (Bookworm 64-bit) that runs an MQTT
 | MQTT Broker | Mosquitto 2.x | Lightweight, native ARM64 packages in Bookworm repos |
 | Alert Service | Python 3.11+ | Ships with Bookworm; rich MQTT/Slack library ecosystem |
 | MQTT Client Lib | paho-mqtt 2.x | De-facto standard Python MQTT client |
-| Slack Integration | slack-sdk (webhook) | Official Slack SDK, simple incoming webhook support |
+| Slack Integration | slack-sdk (Bot Token) | Official Slack SDK, `chat.postMessage` API via Bot Token for full channel control |
 | Web Backend | FastAPI + Uvicorn | Async, fast, auto-generated OpenAPI docs |
 | Web Frontend | React 18 + Vite | Modern, fast builds, excellent DX |
 | UI Framework | Tailwind CSS + shadcn/ui | Professional look, accessible components |
@@ -76,7 +76,7 @@ MQTT-Alerts/
 │   │   ├── config.py          # Configuration loader (env / .env / DB)
 │   │   ├── mqtt_client.py     # MQTT subscriber logic
 │   │   ├── rule_engine.py     # Message matching & rule evaluation
-│   │   ├── slack_notifier.py  # Slack webhook dispatcher
+│   │   ├── slack_notifier.py  # Slack Bot API dispatcher
 │   │   ├── models.py          # SQLAlchemy models
 │   │   └── database.py        # DB connection & session management
 │   ├── tests/
@@ -119,7 +119,7 @@ MQTT-Alerts/
 │           │   ├── Rules.tsx           # Create/edit/delete alert rules
 │           │   ├── MessageLog.tsx      # Searchable message history
 │           │   ├── LiveFeed.tsx        # Real-time WebSocket message stream
-│           │   └── Settings.tsx        # Slack webhook, broker config, service controls
+│           │   └── Settings.tsx        # Slack bot token, channel picker, broker config, service controls
 │           ├── components/
 │           │   ├── Layout.tsx
 │           │   ├── Sidebar.tsx
@@ -164,7 +164,8 @@ MQTT-Alerts/
   - Dependencies: `paho-mqtt`, `slack-sdk`, `sqlalchemy[asyncio]`, `aiosqlite`, `python-dotenv`
 - [ ] **2.2** Implement `config.py` — loads from env vars / `.env` file
   - `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`
-  - `SLACK_WEBHOOK_URL`
+  - `SLACK_BOT_TOKEN` (xoxb-...)
+  - `SLACK_DEFAULT_CHANNEL`
   - `DB_PATH` (default: `/var/lib/mqtt-alerts/alerts.db`)
   - `LOG_LEVEL`
 - [ ] **2.3** Implement `database.py` + `models.py`
@@ -185,10 +186,14 @@ MQTT-Alerts/
   - Cooldown support to prevent alert storms
   - Severity levels: `info`, `warning`, `critical`
 - [ ] **2.6** Implement `slack_notifier.py`
-  - Format messages with severity-colored attachments
+  - Uses Slack Bot Token (`SLACK_BOT_TOKEN`) with `chat.postMessage` API
+  - Bot requires scopes: `chat:write`, `chat:write.public`
+  - Format messages with Block Kit (severity-colored sidebar, structured fields)
   - Include topic, payload excerpt, timestamp, rule name
-  - Rate limiting (max N alerts per minute)
+  - Per-rule channel targeting (bot can post to any channel it's invited to)
+  - Rate limiting (max N alerts per minute, respects Slack API rate limits)
   - Retry with exponential backoff on failures
+  - Validates bot token on startup and logs connection identity
 - [ ] **2.7** Implement `main.py` — service entry point
   - Graceful startup/shutdown
   - Signal handling (SIGTERM, SIGINT)
@@ -215,8 +220,9 @@ MQTT-Alerts/
   - `POST /api/rules/{id}/test` — test a rule with sample payload
   - `GET /api/messages` — paginated message history with filters
   - `GET /api/messages/live` — WebSocket endpoint for real-time message stream
-  - `GET/PUT /api/settings/slack` — get/update Slack webhook config
-  - `POST /api/settings/slack/test` — send test Slack message
+  - `GET/PUT /api/settings/slack` — get/update Slack bot token & default channel
+  - `POST /api/settings/slack/test` — send test message via bot to a chosen channel
+  - `GET /api/settings/slack/channels` — list channels the bot can post to (via `conversations.list`)
   - `GET /api/dashboard/stats` — topic count, message rate, alert counts, uptime
   - `GET /api/dashboard/recent-alerts` — last N alerts with details
   - `GET /api/system/health` — service status, broker connection, disk usage
@@ -257,7 +263,9 @@ MQTT-Alerts/
   - Topic filter chips
   - Message highlighting by severity
 - [ ] **4.9** **Settings page**
-  - Slack webhook URL configuration with test button
+  - Slack Bot Token configuration with validation indicator
+  - Channel picker dropdown (populated via bot's `conversations.list`)
+  - "Send Test Message" button with channel selector
   - Broker connection settings display
   - Service status with restart controls
   - Data retention settings
@@ -361,10 +369,11 @@ MQTT_USERNAME=              # Leave blank for anonymous
 MQTT_PASSWORD=
 MQTT_CLIENT_ID=mqtt-alert-service
 
-# Slack
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-SLACK_DEFAULT_CHANNEL=      # Optional: override webhook default
-SLACK_RATE_LIMIT=10         # Max alerts per minute
+# Slack Bot Token (create at https://api.slack.com/apps)
+# Required bot scopes: chat:write, chat:write.public, channels:read
+SLACK_BOT_TOKEN=xoxb-your-bot-token-here
+SLACK_DEFAULT_CHANNEL=#alerts   # Default channel for notifications
+SLACK_RATE_LIMIT=10             # Max alerts per minute
 
 # Database
 DB_PATH=/var/lib/mqtt-alerts/alerts.db
