@@ -63,6 +63,10 @@ log "Created directories"
 # ---- Step 4: Copy project files ----
 
 log "Installing application files..."
+
+# Replace deployed source directories so upgrades do not leave stale files behind
+# from older versions. This keeps repeated installs idempotent and predictable.
+rm -rf "$INSTALL_DIR/alert-service" "$INSTALL_DIR/web" "$INSTALL_DIR/mosquitto"
 cp -r "$SCRIPT_DIR/alert-service" "$INSTALL_DIR/"
 cp -r "$SCRIPT_DIR/web" "$INSTALL_DIR/"
 cp -r "$SCRIPT_DIR/mosquitto" "$INSTALL_DIR/"

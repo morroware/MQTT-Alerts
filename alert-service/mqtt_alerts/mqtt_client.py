@@ -209,21 +209,28 @@ class MQTTClient:
                 for r in rules
             ]
 
-        # Update subscriptions
+        # Always keep the in-memory set up to date so reconnects subscribe to
+        # the current topic set even if this refresh ran while disconnected.
+        previous_topics = self._subscribed_topics
+        self._subscribed_topics = new_topics
+
+        # Update active subscriptions when connected
         if self._client and self._connected:
             # Unsubscribe from removed topics
-            removed = self._subscribed_topics - new_topics
+            removed = previous_topics - new_topics
             for topic in removed:
                 self._client.unsubscribe(topic)
                 logger.info("Unsubscribed from: %s", topic)
 
             # Subscribe to new topics with configured QoS
-            added = new_topics - self._subscribed_topics
+            added = new_topics - previous_topics
             for topic in added:
                 self._client.subscribe(topic, qos=self._config.qos)
                 logger.info("Subscribed to: %s (QoS %d)", topic, self._config.qos)
-
-            self._subscribed_topics = new_topics
+        elif previous_topics != new_topics:
+            logger.info(
+                "MQTT not connected; deferred applying topic subscription changes"
+            )
 
         logger.info(
             "Refreshed: %d topics, %d rules", len(new_topics), len(self._rules)
