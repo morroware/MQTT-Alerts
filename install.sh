@@ -66,7 +66,14 @@ cp -r "$SCRIPT_DIR/mosquitto" "$INSTALL_DIR/"
 # ---- Step 5: Configure Mosquitto ----
 
 log "Configuring Mosquitto..."
-cp "$INSTALL_DIR/mosquitto/mosquitto.conf" /etc/mosquitto/conf.d/mqtt-alerts.conf
+
+# Back up default config and replace with ours (conf.d include would conflict
+# with duplicate listener directives in the default mosquitto.conf)
+if [[ -f /etc/mosquitto/mosquitto.conf ]]; then
+    cp /etc/mosquitto/mosquitto.conf /etc/mosquitto/mosquitto.conf.bak
+    log "Backed up default config to /etc/mosquitto/mosquitto.conf.bak"
+fi
+cp "$INSTALL_DIR/mosquitto/mosquitto.conf" /etc/mosquitto/mosquitto.conf
 
 # Restart mosquitto to pick up new config
 systemctl restart mosquitto
