@@ -63,6 +63,7 @@ async def create_topic(body: TopicCreate, db: AsyncSession = Depends(get_db)):
     )
     db.add(topic)
     await db.commit()
+    await db.refresh(topic)
     return {
         "id": topic.id,
         "topic_pattern": topic.topic_pattern,
@@ -96,7 +97,13 @@ async def update_topic(
     if not topic:
         raise HTTPException(404, "Topic not found")
 
-    if body.topic_pattern is not None:
+    if body.topic_pattern is not None and body.topic_pattern != topic.topic_pattern:
+        # Check for duplicate
+        dup = await db.execute(
+            select(Topic).where(Topic.topic_pattern == body.topic_pattern)
+        )
+        if dup.scalar_one_or_none():
+            raise HTTPException(400, "Topic pattern already exists")
         topic.topic_pattern = body.topic_pattern
     if body.description is not None:
         topic.description = body.description

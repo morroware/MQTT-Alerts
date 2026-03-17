@@ -1,5 +1,7 @@
 """Slack configuration and testing API routes."""
 
+import asyncio
+import functools
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -36,6 +38,12 @@ async def get_db():
         yield session
 
 
+async def _run_sync(func, *args, **kwargs):
+    """Run a synchronous function in a thread executor to avoid blocking the event loop."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
+
+
 @router.get("")
 async def get_slack_settings(db: AsyncSession = Depends(get_db)):
     """Get current Slack configuration."""
@@ -50,16 +58,15 @@ async def get_slack_settings(db: AsyncSession = Depends(get_db)):
             "connected": False,
         }
 
-    # Validate current token
+    # Check connection status without mutating the runtime notifier token
     connected = False
     identity = ""
     if _notifier and settings.bot_token:
-        _notifier.update_token(settings.bot_token)
-        connected, identity = _notifier.validate()
+        connected, identity = await _run_sync(_notifier.validate)
 
     return {
         "bot_token_set": bool(settings.bot_token),
-        "bot_token_preview": settings.bot_token[:12] + "..." if settings.bot_token else "",
+        "bot_token_preview": settings.bot_token[:8] + "..." if settings.bot_token else "",
         "default_channel": settings.default_channel,
         "rate_limit": settings.rate_limit,
         "connected": connected,
@@ -98,7 +105,7 @@ async def update_slack_settings(
         _notifier.default_channel = body.default_channel
         _notifier.rate_limit = body.rate_limit
         if body.bot_token:
-            connected, identity = _notifier.validate()
+            connected, identity = await _run_sync(_notifier.validate)
 
     return {
         "bot_token_set": bool(body.bot_token),
@@ -115,7 +122,7 @@ async def test_slack(body: SlackTestRequest):
     if not _notifier:
         raise HTTPException(500, "Slack notifier not initialized")
 
-    ok, response = _notifier.send_test_message(body.channel)
+    ok, response = await _run_sync(_notifier.send_test_message, body.channel)
     if not ok:
         raise HTTPException(400, f"Test failed: {response}")
 
@@ -128,7 +135,7 @@ async def list_slack_channels():
     if not _notifier:
         raise HTTPException(500, "Slack notifier not initialized")
 
-    ok, channels = _notifier.list_channels()
+    ok, channels = await _run_sync(_notifier.list_channels)
     if not ok:
         raise HTTPException(400, "Failed to list channels — check bot token and scopes")
 

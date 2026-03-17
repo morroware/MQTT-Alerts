@@ -112,6 +112,7 @@ async def create_rule(body: RuleCreate, db: AsyncSession = Depends(get_db)):
     )
     db.add(rule)
     await db.commit()
+    await db.refresh(rule)
     return _rule_to_dict(rule)
 
 
