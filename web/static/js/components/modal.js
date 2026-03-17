@@ -14,7 +14,7 @@ const Modal = {
     confirm(title, message, onConfirm) {
         this.open(
             title,
-            `<p>${message}</p>`,
+            `<p>${API.escapeHtml(message)}</p>`,
             `<button class="btn" onclick="Modal.close()">Cancel</button>
              <button class="btn btn-danger" id="modal-confirm-btn">Confirm</button>`
         );

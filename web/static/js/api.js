@@ -34,6 +34,7 @@ const API = {
             const err = await resp.json().catch(() => ({ detail: resp.statusText }));
             throw new Error(err.detail || resp.statusText);
         }
+        if (resp.status === 204) return null;
         return resp.json();
     },
 
@@ -70,7 +71,7 @@ const API = {
 
     timeAgo(iso) {
         if (!iso) return '—';
-        const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+        const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
         if (seconds < 60) return `${seconds}s ago`;
         if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
         if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;

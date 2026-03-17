@@ -51,9 +51,9 @@ const RulesPage = {
                 <div style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 8px;">
                     <span class="text-mono">${API.escapeHtml(r.topic_pattern)}</span>
                     &nbsp;&mdash;&nbsp;
-                    <strong>${r.condition_type}</strong>
+                    <strong>${API.escapeHtml(r.condition_type)}</strong>
                     ${r.condition_type !== 'any' ? ': ' + API.escapeHtml(r.condition_value) : ''}
-                    ${r.condition_type === 'json_path' || r.condition_type === 'threshold' ? ' (' + r.condition_operator + ')' : ''}
+                    ${r.condition_type === 'json_path' || r.condition_type === 'threshold' ? ' (' + API.escapeHtml(r.condition_operator) + ')' : ''}
                 </div>
                 <div style="font-size: 12px; color: var(--color-text-muted);">
                     Channel: ${API.escapeHtml(r.slack_channel || 'default')}
@@ -224,6 +224,7 @@ const RulesPage = {
 
     async updateRule(id) {
         const data = this._collectFormData();
+        delete data.enabled;  // Don't change enabled state from the edit form
         try {
             await API.put(`/api/rules/${id}`, data);
             Modal.close();
