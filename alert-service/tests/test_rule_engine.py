@@ -153,3 +153,36 @@ class TestRuleEngine:
         # test_rule should still work
         result = engine.test_rule("test/topic", "msg", rule)
         assert result.matched
+
+    def test_threshold_with_null_bytes(self):
+        """PLCs (AutomationDirect, etc.) often pad payloads with null bytes."""
+        engine = RuleEngine()
+        rule = _make_rule(
+            condition_type="threshold",
+            condition_value="50",
+            condition_operator=">",
+        )
+        # Simulate PLC payload with trailing null bytes
+        matches = engine.evaluate("test/topic", "75.0\x00\x00", [rule])
+        assert len(matches) == 1
+        assert matches[0].matched
+
+    def test_threshold_with_whitespace_and_nulls(self):
+        """PLC payloads may have mixed whitespace and null padding."""
+        engine = RuleEngine()
+        rule = _make_rule(
+            condition_type="threshold",
+            condition_value="100",
+            condition_operator="<=",
+        )
+        matches = engine.evaluate("test/topic", "  98.6\x00 ", [rule])
+        assert len(matches) == 1
+
+    def test_contains_with_null_bytes(self):
+        """Contains condition should work with null-padded PLC payloads."""
+        engine = RuleEngine()
+        rule = _make_rule(condition_type="contains", condition_value="FAULT")
+        # Null bytes in the payload should not prevent matching
+        # (null bytes are stripped at the MQTT client layer, but test defense in depth)
+        matches = engine.evaluate("test/topic", "FAULT\x00\x00", [rule])
+        assert len(matches) == 1

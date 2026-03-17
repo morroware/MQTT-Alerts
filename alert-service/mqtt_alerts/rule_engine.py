@@ -176,7 +176,9 @@ class RuleEngine:
 
         if condition_type == "threshold":
             try:
-                value = float(payload.strip())
+                # Strip null bytes and whitespace — PLC payloads often contain these
+                cleaned = payload.replace("\x00", "").strip()
+                value = float(cleaned)
                 target = float(condition_value)
                 if _compare(value, operator, condition_value):
                     return True, f"Value {value} {operator} {target}"

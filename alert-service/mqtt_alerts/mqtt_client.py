@@ -41,7 +41,7 @@ class MQTTClient:
         self._client = mqtt.Client(
             mqtt.CallbackAPIVersion.VERSION2,
             client_id=self._config.client_id,
-            clean_session=True,
+            clean_session=self._config.clean_session,
         )
 
         if self._config.username:
@@ -53,7 +53,9 @@ class MQTTClient:
         self._client.reconnect_delay_set(min_delay=1, max_delay=30)
 
         try:
-            self._client.connect_async(self._config.host, self._config.port, keepalive=60)
+            self._client.connect_async(
+                self._config.host, self._config.port, keepalive=self._config.keepalive
+            )
             self._client.loop_start()
             logger.info(
                 "MQTT client connecting to %s:%d", self._config.host, self._config.port
@@ -73,10 +75,10 @@ class MQTTClient:
         if rc == 0:
             self._connected = True
             logger.info("Connected to MQTT broker")
-            # Re-subscribe to all topics
+            # Re-subscribe to all topics with configured QoS
             for topic in self._subscribed_topics:
-                client.subscribe(topic)
-                logger.info("Subscribed to: %s", topic)
+                client.subscribe(topic, qos=self._config.qos)
+                logger.info("Subscribed to: %s (QoS %d)", topic, self._config.qos)
         else:
             self._connected = False
             logger.error("MQTT connection failed with code %d", rc)
@@ -93,6 +95,9 @@ class MQTTClient:
             payload = msg.payload.decode("utf-8", errors="replace")
         except Exception:
             payload = str(msg.payload)
+
+        # Strip null bytes — common in PLC payloads (AutomationDirect, etc.)
+        payload = payload.replace("\x00", "").strip()
 
         logger.debug("Message on %s: %s", topic, payload[:200])
 
@@ -212,11 +217,11 @@ class MQTTClient:
                 self._client.unsubscribe(topic)
                 logger.info("Unsubscribed from: %s", topic)
 
-            # Subscribe to new topics
+            # Subscribe to new topics with configured QoS
             added = new_topics - self._subscribed_topics
             for topic in added:
-                self._client.subscribe(topic)
-                logger.info("Subscribed to: %s", topic)
+                self._client.subscribe(topic, qos=self._config.qos)
+                logger.info("Subscribed to: %s (QoS %d)", topic, self._config.qos)
 
             self._subscribed_topics = new_topics
 
