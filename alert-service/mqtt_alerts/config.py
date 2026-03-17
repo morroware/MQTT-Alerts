@@ -28,6 +28,9 @@ class MQTTConfig:
     username: str = ""
     password: str = ""
     client_id: str = "mqtt-alert-service"
+    keepalive: int = 60
+    clean_session: bool = False
+    qos: int = 1
 
 
 @dataclass
@@ -56,6 +59,10 @@ class Config:
                 username=os.getenv("MQTT_USERNAME", ""),
                 password=os.getenv("MQTT_PASSWORD", ""),
                 client_id=os.getenv("MQTT_CLIENT_ID", "mqtt-alert-service"),
+                keepalive=int(os.getenv("MQTT_KEEPALIVE", "60")),
+                clean_session=os.getenv("MQTT_CLEAN_SESSION", "false").lower()
+                in ("true", "1", "yes"),
+                qos=int(os.getenv("MQTT_QOS", "1")),
             ),
             slack=SlackConfig(
                 bot_token=os.getenv("SLACK_BOT_TOKEN", ""),
