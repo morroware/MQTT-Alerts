@@ -30,7 +30,11 @@ if [[ $EUID -ne 0 ]]; then
     error "This script must be run as root (use: sudo bash install.sh)"
 fi
 
-log "MQTT-Alerts Installer"
+if [[ -d "$INSTALL_DIR" ]]; then
+    log "MQTT-Alerts Installer (upgrade)"
+else
+    log "MQTT-Alerts Installer (fresh install)"
+fi
 echo "======================================"
 echo ""
 
@@ -68,8 +72,9 @@ cp -r "$SCRIPT_DIR/mosquitto" "$INSTALL_DIR/"
 log "Configuring Mosquitto..."
 
 # Back up default config and replace with ours (conf.d include would conflict
-# with duplicate listener directives in the default mosquitto.conf)
-if [[ -f /etc/mosquitto/mosquitto.conf ]]; then
+# with duplicate listener directives in the default mosquitto.conf).
+# Only back up if this is the first install (don't overwrite the original backup).
+if [[ -f /etc/mosquitto/mosquitto.conf && ! -f /etc/mosquitto/mosquitto.conf.bak ]]; then
     cp /etc/mosquitto/mosquitto.conf /etc/mosquitto/mosquitto.conf.bak
     log "Backed up default config to /etc/mosquitto/mosquitto.conf.bak"
 fi
@@ -83,14 +88,17 @@ log "Mosquitto configured and running"
 # ---- Step 6: Python virtual environment ----
 
 log "Setting up Python virtual environment..."
-python3 -m venv "$INSTALL_DIR/venv"
+if [[ ! -d "$INSTALL_DIR/venv" ]]; then
+    python3 -m venv "$INSTALL_DIR/venv"
+    log "Created new virtual environment"
+else
+    log "Virtual environment already exists, upgrading packages"
+fi
 source "$INSTALL_DIR/venv/bin/activate"
 
-# Install alert service
-pip install --quiet "$INSTALL_DIR/alert-service"
-
-# Install web backend
-pip install --quiet "$INSTALL_DIR/web"
+# Install/upgrade alert service and web backend
+pip install --quiet --upgrade "$INSTALL_DIR/alert-service"
+pip install --quiet --upgrade "$INSTALL_DIR/web"
 
 deactivate
 log "Python packages installed"
@@ -125,8 +133,9 @@ systemctl daemon-reload
 systemctl enable mqtt-alert-service
 systemctl enable mqtt-alerts-web
 
-systemctl start mqtt-alert-service
-systemctl start mqtt-alerts-web
+# Use restart (not start) so re-running the installer picks up updated code
+systemctl restart mqtt-alert-service
+systemctl restart mqtt-alerts-web
 
 log "Services installed and started"
 

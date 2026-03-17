@@ -1,6 +1,6 @@
 # MQTT-Alerts
 
-A lightweight MQTT monitoring and Slack alert system for Raspberry Pi 5. Monitors MQTT topics, evaluates messages against configurable rules, and sends Slack notifications via Bot Token API — all managed through a clean web UI.
+A lightweight MQTT monitoring and Slack alert system for Raspberry Pi 5. Monitors MQTT topics from PLCs and other devices, evaluates messages against configurable rules, and sends Slack notifications via Bot Token API — all managed through a clean web UI. Built for industrial use with AutomationDirect BRX and Productivity PLCs, but works with any MQTT publisher.
 
 ## Features
 
@@ -14,6 +14,7 @@ A lightweight MQTT monitoring and Slack alert system for Raspberry Pi 5. Monitor
 - **Rule Testing** — test rules against sample payloads before enabling
 - **Export/Import** — backup and restore alert rules as JSON
 - **Auto Cleanup** — configurable data retention (default 7 days messages, 30 days alerts)
+- **PLC Ready** — handles null-byte padded payloads, configurable QoS/keepalive, works with AutomationDirect BRX and Productivity PLCs out of the box
 - **Security Hardening** — systemd sandboxing with `ProtectSystem=strict`, `NoNewPrivileges`, `PrivateTmp`
 
 ## Requirements
@@ -33,13 +34,13 @@ cd MQTT-Alerts
 sudo bash install.sh
 ```
 
-The installer will:
+The installer is idempotent — safe to re-run for upgrades. It will:
 
 1. Install Mosquitto, Python venv, and required system packages via apt
 2. Create a dedicated `mqtt-alerts` system user (no login shell, no home directory)
 3. Configure Mosquitto for local network access (TCP :1883 + WebSocket :9001)
 4. Set up a Python virtual environment at `/opt/mqtt-alerts/venv` with all dependencies
-5. Create the configuration file at `/etc/mqtt-alerts/mqtt-alerts.env`
+5. Create the configuration file at `/etc/mqtt-alerts/mqtt-alerts.env` (preserved on re-run)
 6. Set proper file ownership and permissions
 7. Install, enable, and start three systemd services
 8. Print the Web UI URL and next steps
@@ -66,7 +67,7 @@ After install, open `http://<your-pi-ip>:8080` in a browser.
 │         │           └──────────┘              │         │
 └─────────┼─────────────────────────────────────┼─────────┘
           │              LAN                    │
-     MQTT Clients                         Browser UI
+   PLCs / MQTT Clients                    Browser UI
 ```
 
 ### Components
@@ -119,6 +120,9 @@ sudo systemctl restart mqtt-alert-service mqtt-alerts-web
 | `MQTT_USERNAME` | *(empty)* | MQTT username (leave blank for anonymous) |
 | `MQTT_PASSWORD` | *(empty)* | MQTT password |
 | `MQTT_CLIENT_ID` | `mqtt-alert-service` | Client ID for the alert service's MQTT connection |
+| `MQTT_KEEPALIVE` | `60` | MQTT keepalive interval in seconds |
+| `MQTT_CLEAN_SESSION` | `false` | Set to `true` to discard subscriptions/queued messages on reconnect |
+| `MQTT_QOS` | `1` | Subscribe QoS level: `0` (at most once), `1` (at least once), `2` (exactly once) |
 | `SLACK_BOT_TOKEN` | *(empty)* | Slack bot token (`xoxb-...`). Set via web UI or env file. |
 | `SLACK_DEFAULT_CHANNEL` | `#alerts` | Default channel for notifications (overridable per-rule) |
 | `SLACK_RATE_LIMIT` | `10` | Maximum Slack alerts per minute (prevents flooding) |
@@ -382,13 +386,14 @@ curl -X POST http://localhost:8080/api/rules \
 
 ## Mosquitto Configuration
 
-The installer places a custom Mosquitto config at `/etc/mosquitto/conf.d/mqtt-alerts.conf` with:
+The installer replaces the default Mosquitto config at `/etc/mosquitto/mosquitto.conf` (the original is backed up to `mosquitto.conf.bak`) with:
 
 - **TCP listener** on port 1883 (all interfaces)
 - **WebSocket listener** on port 9001 (for browser-based MQTT clients)
 - **Anonymous access** enabled by default (suitable for trusted local networks)
 - **Persistence** enabled at `/var/lib/mosquitto/`
 - **Message size limit** of 256KB
+- **Max keepalive** set to `0` (accepts any client keepalive value, important for PLCs)
 - **Logging** to `/var/log/mosquitto/mosquitto.log`
 
 ### Securing Mosquitto
@@ -400,6 +405,114 @@ For production deployments on untrusted networks, consider:
 3. **Disable anonymous access**: Set `allow_anonymous false`
 4. **Add TLS**: Configure `certfile`, `keyfile`, and `cafile` for encrypted connections
 5. **Restrict listeners**: Bind to specific interfaces instead of `0.0.0.0`
+
+## PLC Integration
+
+MQTT-Alerts is designed to work with industrial PLCs that support MQTT, including AutomationDirect BRX and Productivity series controllers. The system handles common PLC payload quirks out of the box.
+
+### How It Works
+
+```
+┌──────────────┐     MQTT      ┌──────────────┐     Slack    ┌─────────┐
+│  AD PLC      │──────────────►│  MQTT-Alerts │────────────►│  Slack  │
+│  (BRX/P2000) │  :1883        │  (Pi 5)      │  Bot API    │  Channel│
+└──────────────┘               └──────────────┘              └─────────┘
+```
+
+1. Configure your PLC to publish MQTT messages to the Pi's broker on port 1883
+2. Add the PLC's topics in the Web UI (Topics page)
+3. Create alert rules to match conditions (threshold, contains, JSON path, etc.)
+4. Alerts are sent to Slack when rules match
+
+### PLC-Specific Defaults
+
+These defaults are tuned for PLC integration:
+
+| Setting | Default | Why |
+|---------|---------|-----|
+| `MQTT_QOS` | `1` | At-least-once delivery prevents silent message loss from PLCs |
+| `MQTT_CLEAN_SESSION` | `false` | Preserves subscriptions and queued messages across service restarts |
+| `max_keepalive` | `0` (unlimited) | Accepts any keepalive value from PLCs without overriding it |
+| Null-byte stripping | Automatic | PLCs often pad payloads with `\x00` bytes; these are stripped on receipt |
+
+### Recommended Topic Structure
+
+Organize PLC topics hierarchically for easy wildcard subscriptions:
+
+```
+plc/{device_name}/{signal_type}/{signal_name}
+```
+
+Examples:
+- `plc/brx1/analog/tank_level`
+- `plc/brx1/digital/pump_running`
+- `plc/brx1/alarm/high_temp`
+- `plc/productivity1/status/heartbeat`
+
+Then subscribe with wildcards:
+- `plc/brx1/#` — all signals from one PLC
+- `plc/+/alarm/#` — all alarms from all PLCs
+- `plc/+/analog/tank_level` — tank level from every PLC
+
+### Example Alert Rules for PLCs
+
+**High tank level (threshold):**
+- Topic: `plc/brx1/analog/tank_level`
+- Type: Threshold
+- Operator: `>`
+- Value: `85`
+- Severity: Warning
+
+**PLC heartbeat lost (any + cooldown):**
+- Topic: `plc/brx1/status/heartbeat`
+- Type: Any
+- Cooldown: 300s (expect heartbeat every 5 min; alert if it stops)
+
+**Fault word contains error (contains):**
+- Topic: `plc/brx1/alarm/fault_string`
+- Type: Contains
+- Value: `FAULT`
+- Severity: Critical
+
+**JSON payload from Productivity PLC (json_path):**
+- Topic: `plc/productivity1/data`
+- Type: JSON Path
+- Value: `temperature|150`
+- Operator: `>`
+- Severity: Critical
+
+### Payload Format Tips
+
+- **Numeric values**: Publish raw numbers (e.g., `75.3`) for threshold rules. Null bytes and whitespace are automatically stripped.
+- **String values**: Publish plain text for contains/regex rules. The PLC's string output works as-is.
+- **JSON**: If your PLC supports structured output, publish JSON (e.g., `{"temp":72.5,"pressure":14.7}`) and use JSON Path rules for field-level conditions.
+- **Retained messages**: Enable retained publish on the PLC so the alert service receives current state after a restart.
+
+### AutomationDirect Setup Notes
+
+**BRX Series:**
+- Use the MQTT instruction block in Do-more Designer
+- Set the broker IP to the Pi's address, port 1883
+- Leave username/password blank (anonymous access is enabled by default)
+- Set QoS to 1 for reliable delivery
+- Enable retained messages for status/state topics
+
+**Productivity Series:**
+- Configure the MQTT client in the hardware configuration
+- Point to the Pi's IP on port 1883
+- Use the PUBLISH instruction for each data point
+
+### Verifying PLC Connection
+
+```bash
+# Watch for messages from the PLC in real time
+mosquitto_sub -h localhost -t "plc/#" -v
+
+# Check the alert service logs
+sudo journalctl -u mqtt-alert-service -f
+
+# Or use the Live Feed page in the web UI at http://<pi-ip>:8080
+```
 
 ## Troubleshooting
 
@@ -425,6 +538,25 @@ mosquitto_sub -h localhost -t test
 
 # Check mosquitto logs
 sudo journalctl -u mosquitto -f
+```
+
+### PLC messages not arriving
+
+```bash
+# Verify Mosquitto is listening and the PLC can reach port 1883
+ss -tlnp | grep 1883
+
+# Subscribe to all topics to see what's being published
+mosquitto_sub -h localhost -t "#" -v
+
+# Check if the PLC's keepalive is being rejected (look for "exceeded" in logs)
+sudo journalctl -u mosquitto -f
+
+# If the PLC connects but messages aren't processed, check the alert service
+sudo journalctl -u mqtt-alert-service -f
+
+# Verify your topics are enabled
+curl -s http://localhost:8080/api/topics | python3 -m json.tool
 ```
 
 ### Slack alerts not sending
