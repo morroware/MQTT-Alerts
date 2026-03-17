@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import signal
 import time
 from dataclasses import dataclass, field
 
@@ -149,7 +150,12 @@ class RuleEngine:
 
         if condition_type == "regex":
             try:
-                if re.search(condition_value, payload):
+                # Compile with a length check to mitigate overly complex patterns
+                if len(condition_value) > 1000:
+                    logger.warning("Regex pattern too long (%d chars), skipping", len(condition_value))
+                    return False, ""
+                match = re.search(condition_value, payload, re.DOTALL)
+                if match:
                     return True, f"Payload matches regex '{condition_value}'"
             except re.error as e:
                 logger.warning("Invalid regex '%s': %s", condition_value, e)

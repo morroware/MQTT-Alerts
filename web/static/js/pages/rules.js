@@ -51,9 +51,9 @@ const RulesPage = {
                 <div style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 8px;">
                     <span class="text-mono">${API.escapeHtml(r.topic_pattern)}</span>
                     &nbsp;&mdash;&nbsp;
-                    <strong>${r.condition_type}</strong>
+                    <strong>${API.escapeHtml(r.condition_type)}</strong>
                     ${r.condition_type !== 'any' ? ': ' + API.escapeHtml(r.condition_value) : ''}
-                    ${r.condition_type === 'json_path' || r.condition_type === 'threshold' ? ' (' + r.condition_operator + ')' : ''}
+                    ${r.condition_type === 'json_path' || r.condition_type === 'threshold' ? ' (' + API.escapeHtml(r.condition_operator) + ')' : ''}
                 </div>
                 <div style="font-size: 12px; color: var(--color-text-muted);">
                     Channel: ${API.escapeHtml(r.slack_channel || 'default')}
@@ -63,7 +63,7 @@ const RulesPage = {
                 <div style="margin-top: 12px; display: flex; gap: 8px;">
                     <button class="btn btn-sm" onclick="RulesPage.showTestModal(${r.id})">Test</button>
                     <button class="btn btn-sm" onclick="RulesPage.showEditModal(${r.id})">Edit</button>
-                    <button class="btn btn-sm btn-danger" onclick="RulesPage.deleteRule(${r.id}, '${API.escapeHtml(r.name)}')">Delete</button>
+                    <button class="btn btn-sm btn-danger" onclick="RulesPage.deleteRule(${r.id}, '${API.escapeJsString(r.name)}')">Delete</button>
                 </div>
             </div>
         `).join('');
@@ -224,6 +224,7 @@ const RulesPage = {
 
     async updateRule(id) {
         const data = this._collectFormData();
+        delete data.enabled;  // Don't change enabled state from the edit form
         try {
             await API.put(`/api/rules/${id}`, data);
             Modal.close();

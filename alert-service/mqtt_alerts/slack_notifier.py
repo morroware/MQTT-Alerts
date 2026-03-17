@@ -89,14 +89,18 @@ class SlackNotifier:
 
         # Use custom template or default
         if message_template:
-            text = message_template.format(
-                topic=topic,
-                payload=payload,
-                rule=rule_name,
-                severity=severity,
-                details=details,
-                timestamp=now,
-            )
+            try:
+                text = message_template.format(
+                    topic=topic,
+                    payload=payload,
+                    rule=rule_name,
+                    severity=severity,
+                    details=details,
+                    timestamp=now,
+                )
+            except (KeyError, IndexError, ValueError) as e:
+                logger.warning("Bad message template for rule '%s': %s", rule_name, e)
+                text = f"{emoji} *MQTT Alert* — {severity.upper()}"
         else:
             text = f"{emoji} *MQTT Alert* — {severity.upper()}"
 

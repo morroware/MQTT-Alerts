@@ -5,7 +5,7 @@ import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -79,7 +79,7 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/recent-alerts")
-async def get_recent_alerts(limit: int = 20, db: AsyncSession = Depends(get_db)):
+async def get_recent_alerts(limit: int = Query(20, ge=1, le=100), db: AsyncSession = Depends(get_db)):
     """Get recent alerts."""
     result = await db.execute(
         select(AlertLog).order_by(AlertLog.sent_at.desc()).limit(limit)
@@ -103,7 +103,7 @@ async def get_recent_alerts(limit: int = 20, db: AsyncSession = Depends(get_db))
 async def get_system_health():
     """Get system health status."""
     # Check alert service health
-    health_file = Path("/tmp/mqtt-alert-service.health")
+    health_file = Path("/var/lib/mqtt-alerts/alert-service.health")
     alert_service_status = "unknown"
     mqtt_connected = False
     if health_file.exists():

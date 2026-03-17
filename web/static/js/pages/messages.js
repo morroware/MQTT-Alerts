@@ -61,12 +61,16 @@ const MessagesPage = {
             return;
         }
 
+        // Store messages for detail view lookup
+        this._currentMessages = {};
+        data.messages.forEach(m => { this._currentMessages[m.id] = m; });
+
         const rows = data.messages.map(m => {
             const payloadPreview = m.payload.length > 120
                 ? API.escapeHtml(m.payload.substring(0, 120)) + '...'
                 : API.escapeHtml(m.payload);
             return `
-                <tr onclick="MessagesPage.showDetail(${m.id}, '${API.escapeHtml(m.topic)}', \`${API.escapeHtml(m.payload).replace(/`/g, '\\`')}\`, ${m.qos}, ${m.retained}, '${m.received_at}')" style="cursor:pointer;">
+                <tr onclick="MessagesPage.showDetailById(${m.id})" style="cursor:pointer;">
                     <td class="text-mono" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                         ${API.escapeHtml(m.topic)}
                     </td>
@@ -108,29 +112,35 @@ const MessagesPage = {
         `;
     },
 
-    showDetail(id, topic, payload, qos, retained, time) {
+    showDetailById(id) {
+        const m = this._currentMessages && this._currentMessages[id];
+        if (!m) return;
+        this.showDetail(m);
+    },
+
+    showDetail(m) {
         Modal.open('Message Detail', `
             <div class="form-group">
                 <label>Topic</label>
-                <div class="text-mono">${topic}</div>
+                <div class="text-mono">${API.escapeHtml(m.topic)}</div>
             </div>
             <div class="form-group">
                 <label>Payload</label>
-                <pre style="background: var(--color-bg); padding: 12px; border-radius: var(--radius-sm); overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;">${payload}</pre>
+                <pre style="background: var(--color-bg); padding: 12px; border-radius: var(--radius-sm); overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;">${API.escapeHtml(m.payload)}</pre>
             </div>
             <div class="form-row">
                 <div class="form-group">
                     <label>QoS</label>
-                    <div>${qos}</div>
+                    <div>${m.qos}</div>
                 </div>
                 <div class="form-group">
                     <label>Retained</label>
-                    <div>${retained ? 'Yes' : 'No'}</div>
+                    <div>${m.retained ? 'Yes' : 'No'}</div>
                 </div>
             </div>
             <div class="form-group">
                 <label>Received</label>
-                <div>${API.formatDate(time)}</div>
+                <div>${API.formatDate(m.received_at)}</div>
             </div>
         `, `<button class="btn" onclick="Modal.close()">Close</button>`);
     },

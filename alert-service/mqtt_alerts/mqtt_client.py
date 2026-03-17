@@ -1,6 +1,7 @@
 """MQTT subscriber that connects to broker and dispatches messages."""
 
 import asyncio
+import functools
 import logging
 from datetime import datetime, timezone
 
@@ -9,7 +10,7 @@ from sqlalchemy import select
 
 from .config import MQTTConfig
 from .database import get_session_factory
-from .models import Message, Rule, Topic
+from .models import AlertLog, Message, Rule, Topic
 from .rule_engine import RuleEngine
 from .slack_notifier import SlackNotifier
 
@@ -106,60 +107,68 @@ class MQTTClient:
         self, topic: str, payload: str, qos: int, retained: bool
     ):
         """Store message and evaluate rules (runs on asyncio loop)."""
-        session_factory = get_session_factory()
+        try:
+            session_factory = get_session_factory()
 
-        # Store message
-        async with session_factory() as session:
-            message = Message(
-                topic=topic,
-                payload=payload,
-                qos=qos,
-                retained=retained,
-                received_at=datetime.now(timezone.utc),
-            )
-            session.add(message)
-            await session.commit()
-            message_id = message.id
-
-        # Evaluate rules
-        matches = self._rule_engine.evaluate(topic, payload, self._rules)
-
-        for match in matches:
-            if match.matched:
-                success, response = self._notifier.send_alert(
+            # Store message
+            async with session_factory() as session:
+                message = Message(
                     topic=topic,
                     payload=payload,
-                    rule_name=match.rule_name,
-                    severity=match.severity,
-                    details=match.details,
-                    channel=match.slack_channel,
-                    message_template=match.message_template,
+                    qos=qos,
+                    retained=retained,
+                    received_at=datetime.now(timezone.utc),
                 )
+                session.add(message)
+                await session.commit()
+                message_id = message.id
 
-                # Log the alert
-                from .models import AlertLog
+            # Evaluate rules
+            matches = self._rule_engine.evaluate(topic, payload, self._rules)
 
-                async with session_factory() as session:
-                    alert = AlertLog(
-                        rule_id=match.rule_id,
-                        message_id=message_id,
-                        rule_name=match.rule_name,
-                        topic=topic,
-                        severity=match.severity,
-                        slack_response=response,
-                        sent_at=datetime.now(timezone.utc),
+            for match in matches:
+                if match.matched:
+                    # Run synchronous Slack API call in executor to avoid
+                    # blocking the asyncio event loop
+                    loop = asyncio.get_running_loop()
+                    success, response = await loop.run_in_executor(
+                        None,
+                        functools.partial(
+                            self._notifier.send_alert,
+                            topic=topic,
+                            payload=payload,
+                            rule_name=match.rule_name,
+                            severity=match.severity,
+                            details=match.details,
+                            channel=match.slack_channel,
+                            message_template=match.message_template,
+                        ),
                     )
-                    session.add(alert)
 
-                    # Update last_triggered on the rule
-                    result = await session.execute(
-                        select(Rule).where(Rule.id == match.rule_id)
-                    )
-                    rule = result.scalar_one_or_none()
-                    if rule:
-                        rule.last_triggered = datetime.now(timezone.utc)
+                    # Log the alert
+                    async with session_factory() as session:
+                        alert = AlertLog(
+                            rule_id=match.rule_id,
+                            message_id=message_id,
+                            rule_name=match.rule_name,
+                            topic=topic,
+                            severity=match.severity,
+                            slack_response=response,
+                            sent_at=datetime.now(timezone.utc),
+                        )
+                        session.add(alert)
 
-                    await session.commit()
+                        # Update last_triggered on the rule
+                        result = await session.execute(
+                            select(Rule).where(Rule.id == match.rule_id)
+                        )
+                        rule = result.scalar_one_or_none()
+                        if rule:
+                            rule.last_triggered = datetime.now(timezone.utc)
+
+                        await session.commit()
+        except Exception as e:
+            logger.error("Error processing message on %s: %s", topic, e)
 
     async def refresh_subscriptions(self):
         """Reload topics and rules from database."""

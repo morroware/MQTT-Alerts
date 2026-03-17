@@ -49,7 +49,7 @@ const TopicsPage = {
                 <td class="text-muted">${API.formatDate(t.created_at)}</td>
                 <td>
                     <button class="btn btn-sm" onclick="TopicsPage.showEditModal(${t.id})">Edit</button>
-                    <button class="btn btn-sm btn-danger" onclick="TopicsPage.deleteTopic(${t.id}, '${API.escapeHtml(t.topic_pattern)}')">Delete</button>
+                    <button class="btn btn-sm btn-danger" onclick="TopicsPage.deleteTopic(${t.id}, '${API.escapeJsString(t.topic_pattern)}')">Delete</button>
                 </td>
             </tr>
         `).join('');

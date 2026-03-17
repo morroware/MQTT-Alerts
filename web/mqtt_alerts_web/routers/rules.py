@@ -112,6 +112,7 @@ async def create_rule(body: RuleCreate, db: AsyncSession = Depends(get_db)):
     )
     db.add(rule)
     await db.commit()
+    await db.refresh(rule)
     return _rule_to_dict(rule)
 
 
@@ -132,6 +133,20 @@ async def update_rule(
     rule = result.scalar_one_or_none()
     if not rule:
         raise HTTPException(404, "Rule not found")
+
+    # Validate enum fields if provided
+    if body.condition_type is not None:
+        valid_types = {"any", "contains", "regex", "json_path", "threshold"}
+        if body.condition_type not in valid_types:
+            raise HTTPException(400, f"Invalid condition_type. Must be one of: {valid_types}")
+    if body.condition_operator is not None:
+        valid_operators = {"==", "!=", ">", "<", ">=", "<="}
+        if body.condition_operator not in valid_operators:
+            raise HTTPException(400, f"Invalid condition_operator. Must be one of: {valid_operators}")
+    if body.severity is not None:
+        valid_severities = {"info", "warning", "critical"}
+        if body.severity not in valid_severities:
+            raise HTTPException(400, f"Invalid severity. Must be one of: {valid_severities}")
 
     for field in [
         "name", "topic_pattern", "condition_type", "condition_value",

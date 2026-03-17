@@ -100,7 +100,13 @@ else
     log "Configuration file already exists, not overwriting"
 fi
 
-# ---- Step 8: Install systemd services ----
+# ---- Step 8: Set permissions (before starting services) ----
+
+chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
+log "Permissions set"
+
+# ---- Step 9: Install systemd services ----
 
 log "Installing systemd services..."
 
@@ -116,11 +122,6 @@ systemctl start mqtt-alert-service
 systemctl start mqtt-alerts-web
 
 log "Services installed and started"
-
-# ---- Step 9: Set permissions ----
-
-chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
-chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
 
 # ---- Done ----
 

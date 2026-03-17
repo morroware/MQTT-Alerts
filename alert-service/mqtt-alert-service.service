@@ -11,7 +11,7 @@ Group=mqtt-alerts
 EnvironmentFile=/etc/mqtt-alerts/mqtt-alerts.env
 ExecStart=/opt/mqtt-alerts/venv/bin/mqtt-alert-service
 WorkingDirectory=/opt/mqtt-alerts
-Restart=on-failure
+Restart=always
 RestartSec=5
 StartLimitBurst=5
 StartLimitIntervalSec=60
@@ -20,7 +20,7 @@ StartLimitIntervalSec=60
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/mqtt-alerts /tmp
+ReadWritePaths=/var/lib/mqtt-alerts
 PrivateTmp=yes
 
 # Logging

@@ -9,7 +9,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 # Load env
 for env_path in [
@@ -97,4 +97,4 @@ async def favicon():
     favicon_path = STATIC_DIR / "favicon.ico"
     if favicon_path.exists():
         return FileResponse(str(favicon_path))
-    return FileResponse(str(STATIC_DIR / "index.html"), status_code=204)
+    return Response(status_code=204)
