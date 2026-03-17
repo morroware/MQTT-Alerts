@@ -393,7 +393,7 @@ The installer replaces the default Mosquitto config at `/etc/mosquitto/mosquitto
 - **Anonymous access** enabled by default (suitable for trusted local networks)
 - **Persistence** enabled at `/var/lib/mosquitto/`
 - **Message size limit** of 256KB
-- **Max keepalive** set to `0` (accepts any client keepalive value, important for PLCs)
+- **Max keepalive** set to `65535` (~18 hours, prevents rejecting PLC connections with long keepalive intervals)
 - **Logging** to `/var/log/mosquitto/mosquitto.log`
 
 ### Securing Mosquitto
@@ -432,7 +432,7 @@ These defaults are tuned for PLC integration:
 |---------|---------|-----|
 | `MQTT_QOS` | `1` | At-least-once delivery prevents silent message loss from PLCs |
 | `MQTT_CLEAN_SESSION` | `false` | Preserves subscriptions and queued messages across service restarts |
-| `max_keepalive` | `0` (unlimited) | Accepts any keepalive value from PLCs without overriding it |
+| `max_keepalive` | `65535` (~18 hrs) | Accepts any practical keepalive value from PLCs |
 | Null-byte stripping | Automatic | PLCs often pad payloads with `\x00` bytes; these are stripped on receipt |
 
 ### Recommended Topic Structure

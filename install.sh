@@ -81,9 +81,14 @@ fi
 cp "$INSTALL_DIR/mosquitto/mosquitto.conf" /etc/mosquitto/mosquitto.conf
 
 # Restart mosquitto to pick up new config
-systemctl restart mosquitto
 systemctl enable mosquitto
-log "Mosquitto configured and running"
+if systemctl restart mosquitto; then
+    log "Mosquitto configured and running"
+else
+    warn "Mosquitto failed to start. Check config with: mosquitto -c /etc/mosquitto/mosquitto.conf -v"
+    warn "Logs: sudo journalctl -u mosquitto --no-pager -n 20"
+    warn "Continuing install — fix Mosquitto config and restart manually."
+fi
 
 # ---- Step 6: Python virtual environment ----
 
